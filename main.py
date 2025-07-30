@@ -68,6 +68,13 @@ def load_posted():
             return json.load(f)
     return {}
 user_states = {}
+
+# زر للقنوات
+def get_fixed_button():
+    markup = types.InlineKeyboardMarkup()
+    button = types.InlineKeyboardButton("قنوات جهادية", url="https://t.me/addlist/5gK4-CGwMuVhZGFk")
+    markup.add(button)
+    return markup
 # 🔍 عرض القنوات
 @bot.message_handler(commands=['عرض_القنوات'])
 def show_channels(message):
@@ -102,7 +109,7 @@ def show_scheduled_message(message):
         return
     msg = load_message()
     if msg:
-        bot.reply_to(message, f"📨 الرسالة الحالية:\n\n{msg}")
+        bot.reply_to(message, f"📨 الرسالة الحالية:\n\n{msg}",reply_markup=get_fixed_button())
     else:
         bot.reply_to(message, "📭 لا توجد رسالة محفوظة حالياً.")
 
@@ -239,7 +246,7 @@ def post_scheduled_message():
     posted = {}
     for chat_id in channels:
         try:
-            msg = bot.send_message(chat_id, text)
+            msg = bot.send_message(chat_id, text,reply_markup=get_fixed_button())
             posted[str(chat_id)] = msg.message_id
         except Exception as e:
             bot.send_message(ADMIN_ID,f"❌ خطأ في النشر إلى {chat_id}: {e}")
