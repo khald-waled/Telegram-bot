@@ -67,6 +67,54 @@ def load_posted():
         with open(POSTED_FILE, 'r') as f:
             return json.load(f)
     return {}
+user_states = {}
+# 🔍 عرض القنوات
+@bot.message_handler(commands=['عرض_القنوات'])
+def show_channels(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    channels = load_channels()
+    if not channels:
+        bot.reply_to(message, "📭 لا توجد قنوات مسجلة حالياً.")
+        return
+    response = "📡 القنوات المسجلة:\n" + "\n".join([f"`{c}`" for c in channels])
+    bot.reply_to(message, response, parse_mode='Markdown')
+
+# ➕ إدخال قناة
+@bot.message_handler(commands=['إضافة_قناة'])
+def request_channel_add(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    user_states[message.from_user.id] = 'adding_channel'
+    bot.reply_to(message, "🔗 أرسل الآن رابط القناة لإضافتها.")
+
+# ➖ حذف قناة
+@bot.message_handler(commands=['حذف_قناة'])
+def request_channel_delete(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    user_states[message.from_user.id] = 'deleting_channel'
+    bot.reply_to(message, "🗑️ أرسل الآن رابط القناة أو رقمها لحذفها.")
+
+@bot.message_handler(commands=['عرض_الرسالة'])
+def show_scheduled_message(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    msg = load_message()
+    if msg:
+        bot.reply_to(message, f"📨 الرسالة الحالية:\n\n{msg}")
+    else:
+        bot.reply_to(message, "📭 لا توجد رسالة محفوظة حالياً.")
+
+@bot.message_handler(commands=['حذف_الرسالة'])
+def delete_scheduled_message(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    if os.path.exists(MESSAGE_FILE):
+        os.remove(MESSAGE_FILE)
+        bot.reply_to(message, "🗑️ تم حذف الرسالة المجدولة.")
+    else:
+        bot.reply_to(message, "❌ لا توجد رسالة محفوظة لحذفها.")
 
 
 # 🟢 ترحيب
@@ -127,27 +175,6 @@ def handle_message(message):
     save_message(message.text)
     bot.reply_to(message, "✅ تم حفظ الرسالة اليومية بنجاح.")
 
-# 📝 استقبال رسالتك اليومية
-@bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
-def handle_admin_message(message):
-    if message.from_user.id != ADMIN_ID:
-        if not check_subscription(message.from_user.id):
-            bot.send_message(message.chat.id, f"❌ لا يمكنك استخدام البوت حتى تشترك في القناة {REQUIRED_CHANNEL}")
-            return
-        else:
-            bot.reply_to(message,
-                "📡 أرسل رابط قناتك وتأكد من جعل البوت مشرفًا فيها.\n"
-                "✳️ سيتم إضافتها إلى قائمة الدعم.\n"
-                "راسل المسؤول: @RohThoryaBot"
-            )
-            bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
-            bot.send_message(ADMIN_ID, f"{message.from_user.id}")
-            return
-
-    # فقط لو المرسل هو الأدمن
-    save_message(message.text)
-    bot.reply_to(message, "✅ تم حفظ الرسالة اليومية بنجاح.")
-
 
 # 🛰️ تسجيل أي قناة أُضيف إليها البوت
 @bot.channel_post_handler(func=lambda m: True)
@@ -156,12 +183,57 @@ def register_channel(message):
     if message.chat.id not in channels:
         channels.append(message.chat.id)
         save_channels(channels)
-        print(f"✅ تم تسجيل القناة: {message.chat.id}")
+        bot.send_message(ADMIN_ID,f"✅ تم تسجيل القناة: {message.chat.id}")
 
+@bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
+def handle_admin_message(message):
+    state = user_states.get(message.from_user.id)
+
+    if state == 'adding_channel':
+        try:
+            chat = bot.get_chat(message.text)
+            chat_id = chat.id
+            channels = load_channels()
+            if chat_id not in channels:
+                channels.append(chat_id)
+                save_channels(channels)
+                bot.reply_to(message, f"✅ تم إضافة القناة: {chat.title or chat_id}")
+                bot.send_message(ADMIN_ID, f"📢 تمت إضافة قناة جديدة: {chat.title or chat_id}")
+            else:
+                bot.reply_to(message, "⚠️ القناة موجودة بالفعل.")
+        except Exception as e:
+            bot.reply_to(message, f"❌ فشل في إضافة القناة:\n{e}")
+        user_states.pop(message.from_user.id, None)
+        return
+
+    elif state == 'deleting_channel':
+        try:
+            chat = bot.get_chat(message.text)
+            chat_id = chat.id
+        except:
+            try:
+                chat_id = int(message.text)
+            except:
+                bot.reply_to(message, "❌ صيغة غير صحيحة. أرسل رابط القناة أو رقمها.")
+                return
+        channels = load_channels()
+        if chat_id in channels:
+            channels.remove(chat_id)
+            save_channels(channels)
+            bot.reply_to(message, f"🗑️ تم حذف القناة: {chat_id}")
+        else:
+            bot.reply_to(message, "⚠️ هذه القناة غير مسجلة.")
+        user_states.pop(message.from_user.id, None)
+        return
+
+    # 📝 حفظ الرسالة اليومية
+    save_message(message.text)
+    bot.reply_to(message, "✅ تم حفظ الرسالة اليومية بنجاح.")
 # 📤 نشر الرسالة الساعة 11 مساءً
 def post_scheduled_message():
     text = load_message()
     if not text:
+        bot.send_message(ADMIN_ID,"لا يوجد ما يتم نشرة .")
         return
     channels = load_channels()
     posted = {}
@@ -170,9 +242,9 @@ def post_scheduled_message():
             msg = bot.send_message(chat_id, text)
             posted[str(chat_id)] = msg.message_id
         except Exception as e:
-            print(f"❌ خطأ في النشر إلى {chat_id}: {e}")
+            bot.send_message(ADMIN_ID,f"❌ خطأ في النشر إلى {chat_id}: {e}")
     save_posted(posted)
-    print("✅ تم النشر الساعة 11 مساءً.")
+    bot.send_message(ADMIN_ID,"✅ تم النشر الساعة 11 مساءً.")
 
 # 🗑️ حذف الرسائل الساعة 6 صباحًا
 def delete_scheduled_messages():
@@ -181,9 +253,9 @@ def delete_scheduled_messages():
         try:
             bot.delete_message(int(chat_id), msg_id)
         except Exception as e:
-            print(f"❌ خطأ في الحذف من {chat_id}: {e}")
+            bot.send_message(ADMIN_ID, f"❌ خطأ في الحذف من {chat_id}: {e}")
     save_posted({})
-    print("🗑️ تم الحذف الساعة 6 صباحًا.")
+    bot.send_message(ADMIN_ID,"🗑️ تم الحذف الساعة 6 صباحًا.")
 
 # ⏱️ جدولة المهام
 scheduler = BackgroundScheduler(timezone="Asia/Aden")
