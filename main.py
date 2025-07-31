@@ -231,7 +231,7 @@ def handle_message(message):
             else:
                 bot.reply_to(message, "⚠️ القناة موجودة بالفعل.")
         except Exception as e:
-            bot.reply_to(message, f"❌ فشل في إضافة القناة:\n{e}")
+            bot.reply_to(message, "❌ فشل في إضافة القناة:\nتأكد ان الصيغة  تكون @yourChannel")
             user_states.pop(message.from_user.id, None)
         return
     
