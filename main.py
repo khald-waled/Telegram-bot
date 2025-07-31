@@ -113,11 +113,21 @@ def show_channels(message):
         return
     channels = load_channels()
     if not channels:
-        bot.reply_to(message, "📭 لا توجد قنوات مسجلة حالياً.")
+        bot.reply_to(message, "🚫 لا توجد قنوات مسجلة.")
         return
-    response = "📡 القنوات المسجلة:\n" + "\n".join([f"`{c}`" for c in channels])
-    bot.reply_to(message, response, parse_mode='Markdown')
-
+    result = "📋 القنوات المسجلة:\n\n"
+    for chat_id in channels:
+        try:
+            chat = bot.get_chat(chat_id)
+            title = chat.title or "بدون اسم"
+            username = chat.username
+            if username:
+                result += f"🔹 [{title}](https://t.me/{username})\n"
+            else:
+                result += f"🔹 {title} (لا يوجد معرف)\n"
+        except Exception as e:
+            result += f"⚠️ لا يمكن جلب بيانات القناة: {chat_id}\n"
+    bot.send_message(message.chat.id, result)
 
 # ➕ إدخال قناة
 @bot.message_handler(commands=['addchannel'])
@@ -202,25 +212,29 @@ def handle_message(message):
         return
 
     # حالة إضافة قناة
-    if user_state == 'adding_channel':
+    if state == 'adding_channel':
         try:
             chat = bot.get_chat(message.text)
-            target_id = chat.id
+            chat_id = chat.id
+            # تحقق أن البوت مشرف
+            member = bot.get_chat_member(chat_id, bot.get_me().id)
+            if member.status not in ['administrator', 'creator']:
+                bot.reply_to(message, "❌ يجب أن يكون البوت مشرفًا في القناة.")
+                return
+                
             channels = load_channels()
-
-            if target_id not in channels:
-                channels.append(target_id)
+            if chat_id not in channels:
+                channels.append(chat_id)
                 save_channels(channels)
-                bot.reply_to(message, f"✅ تم إضافة القناة: {chat.title or target_id}")
-                bot.send_message(ADMIN_ID, f"📢 تمت إضافة قناة جديدة: {chat.title or target_id}")
+                bot.reply_to(message, f"✅ تم إضافة القناة: {chat.title or chat_id}")
+                bot.send_message(ADMIN_ID, f"📢 تمت إضافة قناة جديدة: {chat.title or chat_id}")
             else:
                 bot.reply_to(message, "⚠️ القناة موجودة بالفعل.")
         except Exception as e:
             bot.reply_to(message, f"❌ فشل في إضافة القناة:\n{e}")
-        finally:
-            user_states.pop(user_id, None)
+            user_states.pop(message.from_user.id, None)
         return
-
+    
     # حالة حذف قناة
     elif user_state == 'deleting_channel':
         try:
@@ -230,7 +244,7 @@ def handle_message(message):
             try:
                 target_id = int(message.text)
             except:
-                bot.reply_to(message, "❌ صيغة غير صحيحة. أرسل رابط القناة أو رقمها.")
+                bot.reply_to(message, "❌ صيغة غير صحيحة. أرسل رابط القناة مثل: @yourChanel أو رقمها.")
                 return
 
         channels = load_channels()
