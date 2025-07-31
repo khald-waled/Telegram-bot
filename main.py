@@ -79,23 +79,23 @@ def get_fixed_button():
 @bot.message_handler(commands=['help'])
 def help_message(message):
     help_m = """
-🤖 *PlusForChanelBot – لستة دعم القنوات*
+🤖 PlusForChanelBot – لستة دعم القنوات
 
 هذا البوت يساعد في دعم القنوات الجهادية بنشر رسالة موحدة يوميًا تتضمن قائمة القنوات المشاركة.
 This bot helps support jihad-focused channels by posting a unified daily message with the list of participating channels.
 
-🔹 *أوامر المستخدم (User Commands):*
+🔹 أوامر المستخدم (User Commands):
 /start – بدء استخدام البوت  
 /help – عرض هذه الرسالة المساعدة  
 /addchannel – إضافة قناتك إلى قائمة الدعم  
 /removechannel – إزالة قناتك من القائمة
 
-🔐 *أوامر المشرف (Admin Commands):*
+🔐 أوامر المشرف (Admin Commands):
 /show_channels – عرض جميع القنوات المسجلة  
 /show_message – عرض رسالة اليوم المجدولة  
 /delete_message – حذف الرسالة يدويًا
 
-🕙 *ملاحظة | Note:*  
+🕙 ملاحظة | Note:
 ⏰ يتم نشر الرسالة تلقائيًا الساعة 11:00 مساءً  
 🗑 ويتم حذفها تلقائيًا الساعة 6:00 صباحًا
 
@@ -104,7 +104,7 @@ Want to add your channel? Use /addchannel
 
 💬 للتواصل أو الدعم: @RohThoryaBot
 """
-    bot.reply_to(message, help_m, parse_mode="MarkdownV2")
+    bot.reply_to(message, help_m)
     
 # 🔍 عرض القنوات
 @bot.message_handler(commands=['show_channels'])
