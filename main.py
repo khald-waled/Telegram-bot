@@ -75,8 +75,39 @@ def get_fixed_button():
     button = types.InlineKeyboardButton("قنوات جهادية", url="https://t.me/addlist/5gK4-CGwMuVhZGFk")
     markup.add(button)
     return markup
+# 🔍 رسالة المساعدة
+@bot.message_handler(commands=['help'])
+def help_message(message):
+    help_message = """
+🤖 *PlusForChanelBot – لستة دعم القنوات*
+
+هذا البوت يساعد في دعم القنوات الجهادية بنشر رسالة موحدة يوميًا تتضمن قائمة القنوات المشاركة.
+This bot helps support jihad-focused channels by posting a unified daily message with the list of participating channels.
+
+🔹 *أوامر المستخدم (User Commands):*
+/start – بدء استخدام البوت  
+/help – عرض هذه الرسالة المساعدة  
+/addchannel – إضافة قناتك إلى قائمة الدعم  
+/removechannel – إزالة قناتك من القائمة
+
+🔐 *أوامر المشرف (Admin Commands):*
+/show_channels – عرض جميع القنوات المسجلة  
+/show_message – عرض رسالة اليوم المجدولة  
+/delete_message – حذف الرسالة يدويًا
+
+🕙 *ملاحظة | Note:*  
+⏰ يتم نشر الرسالة تلقائيًا الساعة 11:00 مساءً  
+🗑 ويتم حذفها تلقائيًا الساعة 6:00 صباحًا
+
+📢 هل تريد إضافة قناتك؟ استخدم الأمر /addchannel  
+Want to add your channel? Use /addchannel
+
+💬 للتواصل أو الدعم: @RohThoryaBot
+"""
+    bot.reply_to(message, help_m, parse_mode="MarkdownV2")
+    
 # 🔍 عرض القنوات
-@bot.message_handler(commands=['عرض_القنوات'])
+@bot.message_handler(commands=['show_channels'])
 def show_channels(message):
     if message.from_user.id != ADMIN_ID:
         return
@@ -87,23 +118,20 @@ def show_channels(message):
     response = "📡 القنوات المسجلة:\n" + "\n".join([f"`{c}`" for c in channels])
     bot.reply_to(message, response, parse_mode='Markdown')
 
+
 # ➕ إدخال قناة
-@bot.message_handler(commands=['إضافة_قناة'])
+@bot.message_handler(commands=['addchannel'])
 def request_channel_add(message):
-    if message.from_user.id != ADMIN_ID:
-        return
     user_states[message.from_user.id] = 'adding_channel'
     bot.reply_to(message, "🔗 أرسل الآن رابط القناة لإضافتها.")
 
 # ➖ حذف قناة
-@bot.message_handler(commands=['حذف_قناة'])
+@bot.message_handler(commands=['removechannel'])
 def request_channel_delete(message):
-    if message.from_user.id != ADMIN_ID:
-        return
     user_states[message.from_user.id] = 'deleting_channel'
     bot.reply_to(message, "🗑️ أرسل الآن رابط القناة أو رقمها لحذفها.")
 
-@bot.message_handler(commands=['عرض_الرسالة'])
+@bot.message_handler(commands=['show_message'])
 def show_scheduled_message(message):
     if message.from_user.id != ADMIN_ID:
         return
@@ -113,7 +141,7 @@ def show_scheduled_message(message):
     else:
         bot.reply_to(message, "📭 لا توجد رسالة محفوظة حالياً.")
 
-@bot.message_handler(commands=['حذف_الرسالة'])
+@bot.message_handler(commands=['delete_message'])
 def delete_scheduled_message(message):
     if message.from_user.id != ADMIN_ID:
         return
@@ -164,21 +192,71 @@ def reply_to_user(message):
 # 📝 استقبال رسائل المستخدمين اليومية
 @bot.message_handler(func=lambda message: message.from_user.id != ADMIN_ID)
 def handle_message(message):
-    if message.from_user.id != ADMIN_ID:
-        if not check_subscription(message.from_user.id):
-            bot.send_message(message.chat.id, f"❌ لا يمكنك استخدام البوت حتى تشترك في القناة {REQUIRED_CHANNEL}")
-            return
-        else:
-            bot.reply_to(message,
-                "📡 أرسل رابط قناتك وتأكد من جعل البوت مشرفًا فيها.\n"
-                "✳️ سيتم إضافتها إلى قائمة الدعم.\n"
-                "راسل المسؤول: @RohThoryaBot"
-            )
-            bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
-            bot.send_message(ADMIN_ID, f"{message.from_user.id}")
-            return
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    user_state = user_states.get(user_id)
 
-    # فقط لو المرسل هو الأدمن
+    # التحقق من الاشتراك الإجباري
+    if not check_subscription(user_id):
+        bot.send_message(chat_id, f"❌ لا يمكنك استخدام البوت حتى تشترك في القناة {REQUIRED_CHANNEL}")
+        return
+
+    # حالة إضافة قناة
+    if user_state == 'adding_channel':
+        try:
+            chat = bot.get_chat(message.text)
+            target_id = chat.id
+            channels = load_channels()
+
+            if target_id not in channels:
+                channels.append(target_id)
+                save_channels(channels)
+                bot.reply_to(message, f"✅ تم إضافة القناة: {chat.title or target_id}")
+                bot.send_message(ADMIN_ID, f"📢 تمت إضافة قناة جديدة: {chat.title or target_id}")
+            else:
+                bot.reply_to(message, "⚠️ القناة موجودة بالفعل.")
+        except Exception as e:
+            bot.reply_to(message, f"❌ فشل في إضافة القناة:\n{e}")
+        finally:
+            user_states.pop(user_id, None)
+        return
+
+    # حالة حذف قناة
+    elif user_state == 'deleting_channel':
+        try:
+            chat = bot.get_chat(message.text)
+            target_id = chat.id
+        except:
+            try:
+                target_id = int(message.text)
+            except:
+                bot.reply_to(message, "❌ صيغة غير صحيحة. أرسل رابط القناة أو رقمها.")
+                return
+
+        channels = load_channels()
+        if target_id in channels:
+            channels.remove(target_id)
+            save_channels(channels)
+            bot.reply_to(message, f"🗑️ تم حذف القناة: {target_id}")
+        else:
+            bot.reply_to(message, "⚠️ هذه القناة غير مسجلة.")
+        user_states.pop(user_id, None)
+        return
+
+    # أي رسالة أخرى من المستخدم
+    bot.reply_to(
+        message,
+        "📡 أرسل رابط قناتك وتأكد من جعل البوت مشرفًا فيها.\n"
+        "✳️ سيتم إضافتها إلى قائمة الدعم.\n"
+        "راسل المسؤول: @RohThoryaBot"
+    )
+    bot.forward_message(ADMIN_ID, chat_id, message.message_id)
+    bot.send_message(ADMIN_ID, f"{user_id}")
+    return
+
+# إذا المرسل هو الأدمن
+@bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
+def handle_admin_message(message):
     save_message(message.text)
     bot.reply_to(message, "✅ تم حفظ الرسالة اليومية بنجاح.")
 
