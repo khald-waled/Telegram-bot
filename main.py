@@ -212,7 +212,7 @@ def handle_message(message):
         return
 
     # حالة إضافة قناة
-    if state == 'adding_channel':
+    if user_state == 'adding_channel':
         try:
             chat = bot.get_chat(message.text)
             chat_id = chat.id
