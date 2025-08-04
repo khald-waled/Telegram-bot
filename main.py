@@ -11,10 +11,10 @@ from threading import Thread
 
 
 # 🛡️ معرفك الشخصي (لتقييد التحكم بك فقط)
-ADMIN_ID = 6459379370  # 🔁 استبدله بـ Telegram ID 
+ADMIN_ID = os.getenv('ADMIN_ID')  # 🔁 استبدله بـ Telegram ID 
 
 # 🎯 توكن البوت
-TOKEN = '8295507669:AAH7j0gnvxGYClK9PIPlleBgcRC1UUXNiDk'
+TOKEN = os.getenv('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
 # 📂 ملفات التخزين
@@ -382,5 +382,6 @@ scheduler.start()
 # 🚀 بدء البوت
 print("🤖 البوت يعمل الآن...")
 bot.polling(none_stop=True)
+
 
 
