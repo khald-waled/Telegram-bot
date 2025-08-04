@@ -14,7 +14,7 @@ from threading import Thread
 ADMIN_ID = 6459379370  # 🔁 استبدله بـ Telegram ID 
 
 # 🎯 توكن البوت
-TOKEN = '8295507669:AAEDIgSPlKMEzCxFWe9CDRSZaF-OMPbagPE'
+TOKEN = '8295507669:AAH7j0gnvxGYClK9PIPlleBgcRC1UUXNiDk'
 bot = telebot.TeleBot(TOKEN)
 
 # 📂 ملفات التخزين
@@ -382,4 +382,5 @@ scheduler.start()
 # 🚀 بدء البوت
 print("🤖 البوت يعمل الآن...")
 bot.polling(none_stop=True)
+
 
