@@ -11,7 +11,7 @@ from threading import Thread
 
 
 # 🛡️ معرفك الشخصي (لتقييد التحكم بك فقط)
-ADMIN_ID = os.getenv('ADMIN_ID')  # 🔁 استبدله بـ Telegram ID 
+ADMIN_ID = int(os.getenv('ADMIN_ID'))  # 🔁 استبدله بـ Telegram ID 
 
 # 🎯 توكن البوت
 TOKEN = os.getenv('BOT_TOKEN')
@@ -382,6 +382,7 @@ scheduler.start()
 # 🚀 بدء البوت
 print("🤖 البوت يعمل الآن...")
 bot.polling(none_stop=True)
+
 
 
 
