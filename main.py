@@ -381,7 +381,14 @@ scheduler.start()
 
 # 🚀 بدء البوت
 print("🤖 البوت يعمل الآن...")
-bot.polling(none_stop=True)
+while True:
+    try:
+        bot.polling(none_stop=True, timeout=60)
+    except Exception as e:
+        print(f"❌ خطأ: {e}")
+        print("🔄 إعادة المحاولة بعد 30 ثانية...")
+        time.sleep(30)
+
 
 
 
