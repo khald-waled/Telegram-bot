@@ -330,45 +330,6 @@ def register_channel(message):
 
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
 def handle_admin_message(message):
-    state = user_states.get(message.from_user.id)
-
-    if state == 'adding_channel':
-        try:
-            chat = bot.get_chat(message.text)
-            chat_id = chat.id
-            channels = load_channels()
-            if chat_id not in channels:
-                channels.append(chat_id)
-                save_channel(chat_id)
-                bot.reply_to(message, f"✅ تم إضافة القناة: {chat.title or chat_id}")
-                bot.send_message(ADMIN_ID, f"📢 تمت إضافة قناة جديدة: {chat.title or chat_id}")
-            else:
-                bot.reply_to(message, "⚠️ القناة موجودة بالفعل.")
-        except Exception as e:
-            bot.reply_to(message, f"❌ فشل في إضافة القناة:\n{e}")
-        user_states.pop(message.from_user.id, None)
-        return
-
-    elif state == 'deleting_channel':
-        try:
-            chat = bot.get_chat(message.text)
-            chat_id = chat.id
-        except:
-            try:
-                chat_id = int(message.text)
-            except:
-                bot.reply_to(message, "❌ صيغة غير صحيحة. أرسل رابط القناة أو رقمها.")
-                return
-        channels = load_channels()
-        if chat_id in channels:
-            channels.remove(chat_id)
-            save_channel(chat_id)
-            bot.reply_to(message, f"🗑️ تم حذف القناة: {chat_id}")
-        else:
-            bot.reply_to(message, "⚠️ هذه القناة غير مسجلة.")
-        user_states.pop(message.from_user.id, None)
-        return
-
     # 📝 حفظ الرسالة اليومية
     save_message(message.text)
     bot.reply_to(message, "✅ تم حفظ الرسالة اليومية بنجاح.")
@@ -430,4 +391,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
