@@ -8,22 +8,41 @@ import os
 from flask import Flask
 from threading import Thread
 
-
-
 # 🛡️ معرفك الشخصي (لتقييد التحكم بك فقط)
 ADMIN_ID = int(os.getenv('ADMIN_ID'))  # 🔁 استبدله بـ Telegram ID 
-
 # 🎯 توكن البوت
 TOKEN = os.getenv('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
-
-# 📂 ملفات التخزين
-CHANNELS_FILE = 'channels.json'
-MESSAGE_FILE = 'message.json'
-POSTED_FILE = 'posted.json'
-
+# 🎯 رابط قاعدة بيانات PostgreSQL من Render
+DATABASE_URL = os.getenv('DATABASE_URL')
 # قبل أي شيء:
 REQUIRED_CHANNEL = "@YMN_SPIRIT"  # القناة المطلوبة
+
+
+# 🔹 إنشاء الجداول في PostgreSQL
+def init_db():
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS channels (
+        id BIGINT PRIMARY KEY
+    );
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS message (
+        id SERIAL PRIMARY KEY,
+        text TEXT
+    );
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS posted (
+        chat_id BIGINT,
+        msg_id BIGINT
+    );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def check_subscription(user_id):
     try:
@@ -36,38 +55,73 @@ def check_subscription(user_id):
         return False
 
 # 📥 تحميل/حفظ القنوات
+# 📥 دوال للتعامل مع القنوات
 def load_channels():
-    if os.path.exists(CHANNELS_FILE):
-        with open(CHANNELS_FILE, 'r') as f:
-            return json.load(f)
-    return []
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM channels")
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
 
-def save_channels(channels):
-    with open(CHANNELS_FILE, 'w') as f:
-        json.dump(channels, f)
+def save_channel(chat_id):
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO channels (id) VALUES (%s) ON CONFLICT DO NOTHING", (chat_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
 
-# 📥 تحميل/حفظ الرسالة
+def delete_channel(chat_id):
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM channels WHERE id=%s", (chat_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# 📥 دوال للرسالة
 def load_message():
-    if os.path.exists(MESSAGE_FILE):
-        with open(MESSAGE_FILE, 'r') as f:
-            return json.load(f).get('text')
-    return None
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT text FROM message ORDER BY id DESC LIMIT 1")
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else None
 
 def save_message(text):
-    with open(MESSAGE_FILE, 'w') as f:
-        json.dump({'text': text}, f)
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM message")
+    cur.execute("INSERT INTO message (text) VALUES (%s)", (text,))
+    conn.commit()
+    cur.close()
+    conn.close()
 
-# 📥 حفظ/تحميل رسائل تم نشرها (لحذفها لاحقًا)
-def save_posted(posted):
-    with open(POSTED_FILE, 'w') as f:
-        json.dump(posted, f)
+# 📥 دوال للرسائل المنشورة
+def save_posted(chat_id, msg_id):
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO posted (chat_id, msg_id) VALUES (%s, %s)", (chat_id, msg_id))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def load_posted():
-    if os.path.exists(POSTED_FILE):
-        with open(POSTED_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-user_states = {}
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT chat_id, msg_id FROM posted")
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+def clear_posted():
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM posted")
+    conn.commit()
+    cur.close()
+    conn.close()
 
 # زر للقنوات
 def get_fixed_button():
@@ -75,6 +129,7 @@ def get_fixed_button():
     button = types.InlineKeyboardButton("قنوات جهادية", url="https://t.me/addlist/5gK4-CGwMuVhZGFk")
     markup.add(button)
     return markup
+
 # 🔍 رسالة المساعدة
 @bot.message_handler(commands=['help'])
 def help_message(message):
@@ -87,25 +142,22 @@ This bot helps support jihad-focused channels by posting a unified daily message
 🔹 أوامر المستخدم (User Commands):
 /start – بدء استخدام البوت  
 /help – عرض هذه الرسالة المساعدة  
-/addchannel – إضافة قناتك إلى قائمة الدعم  
-/removechannel – إزالة قناتك من القائمة
 
 🔐 أوامر المشرف (Admin Commands):
 /show_channels – عرض جميع القنوات المسجلة  
 /show_message – عرض رسالة اليوم المجدولة  
 /delete_message – حذف الرسالة يدويًا
+/addchannel – إضافة قناتك إلى قائمة الدعم  
+/removechannel – إزالة قناتك من القائمة
 
 🕙 ملاحظة | Note:
 ⏰ يتم نشر الرسالة تلقائيًا الساعة 11:00 مساءً  
 🗑 ويتم حذفها تلقائيًا الساعة 6:00 صباحًا
 
-📢 هل تريد إضافة قناتك؟ استخدم الأمر /addchannel  
-Want to add your channel? Use /addchannel
-
 💬 للتواصل أو الدعم: @RohThoryaBot
 """
     bot.reply_to(message, help_m)
-    
+
 # 🔍 عرض القنوات
 @bot.message_handler(commands=['show_channels'])
 def show_channels(message):
@@ -132,12 +184,16 @@ def show_channels(message):
 # ➕ إدخال قناة
 @bot.message_handler(commands=['addchannel'])
 def request_channel_add(message):
+    if message.from_user.id != ADMIN_ID:
+        return
     user_states[message.from_user.id] = 'adding_channel'
     bot.reply_to(message, "🔗 أرسل الآن رابط القناة لإضافتها.")
 
 # ➖ حذف قناة
 @bot.message_handler(commands=['removechannel'])
 def request_channel_delete(message):
+    if message.from_user.id != ADMIN_ID:
+        return
     user_states[message.from_user.id] = 'deleting_channel'
     bot.reply_to(message, "🗑️ أرسل الآن رابط القناة أو رقمها لحذفها.")
 
@@ -155,12 +211,8 @@ def show_scheduled_message(message):
 def delete_scheduled_message(message):
     if message.from_user.id != ADMIN_ID:
         return
-    if os.path.exists(MESSAGE_FILE):
-        os.remove(MESSAGE_FILE)
-        bot.reply_to(message, "🗑️ تم حذف الرسالة المجدولة.")
-    else:
-        bot.reply_to(message, "❌ لا توجد رسالة محفوظة لحذفها.")
-
+    save_message("")  
+    bot.reply_to(message, "🗑️ تم حذف الرسالة.")
 
 # 🟢 ترحيب
 @bot.message_handler(commands=['start'])
@@ -187,12 +239,10 @@ def reply_to_user(message):
     try:
         # نحصل على نص الرسالة التي تم الرد عليها
         replied_text = message.reply_to_message.text.strip()
-
         # تأكد أن الرسالة تحتوي على رقم ID صالح
         if not replied_text.isdigit():
             bot.reply_to(message, "⚠️ الرسالة التي ترد عليها لا تحتوي على رقم ID صحيح.")
             return
-
         user_id = int(replied_text)
         bot.send_message(user_id, f"💬 رد المسؤول:\n{message.text}")
         bot.reply_to(message, "✅ تم إرسال الرد للمستخدم.")
@@ -220,8 +270,8 @@ def handle_message(message):
             member = bot.get_chat_member(chat_id, bot.get_me().id)
             if member.status not in ['administrator', 'creator']:
                 bot.reply_to(message, "❌ يجب أن يكون البوت مشرفًا في القناة.")
-                return
-                
+                return     
+
             channels = load_channels()
             if chat_id not in channels:
                 channels.append(chat_id)
@@ -234,7 +284,7 @@ def handle_message(message):
             bot.reply_to(message, "❌ فشل في إضافة القناة:\nتأكد ان الصيغة  تكون @yourChannel")
             user_states.pop(message.from_user.id, None)
         return
-    
+
     # حالة حذف قناة
     elif user_state == 'deleting_channel':
         try:
@@ -268,21 +318,14 @@ def handle_message(message):
     bot.send_message(ADMIN_ID, f"{user_id}")
     return
 
-# إذا المرسل هو الأدمن
-@bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
-def handle_admin_message(message):
-    save_message(message.text)
-    bot.reply_to(message, "✅ تم حفظ الرسالة اليومية بنجاح.")
-
-
 # 🛰️ تسجيل أي قناة أُضيف إليها البوت
 @bot.channel_post_handler(func=lambda m: True)
 def register_channel(message):
     channels = load_channels()
     if message.chat.id not in channels:
         channels.append(message.chat.id)
-        save_channels(channels)
-        bot.send_message(ADMIN_ID,f"✅ تم تسجيل القناة: {message.chat.id}")
+        save_channel(message.chat.id)
+        bot.send_message(ADMIN_ID,f"✅ تم تسجيل القناة: {message.chat.title}")
 
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
 def handle_admin_message(message):
@@ -295,7 +338,7 @@ def handle_admin_message(message):
             channels = load_channels()
             if chat_id not in channels:
                 channels.append(chat_id)
-                save_channels(channels)
+                save_channel(chat_id)
                 bot.reply_to(message, f"✅ تم إضافة القناة: {chat.title or chat_id}")
                 bot.send_message(ADMIN_ID, f"📢 تمت إضافة قناة جديدة: {chat.title or chat_id}")
             else:
@@ -318,7 +361,7 @@ def handle_admin_message(message):
         channels = load_channels()
         if chat_id in channels:
             channels.remove(chat_id)
-            save_channels(channels)
+            save_channel(chat_id)
             bot.reply_to(message, f"🗑️ تم حذف القناة: {chat_id}")
         else:
             bot.reply_to(message, "⚠️ هذه القناة غير مسجلة.")
@@ -328,6 +371,7 @@ def handle_admin_message(message):
     # 📝 حفظ الرسالة اليومية
     save_message(message.text)
     bot.reply_to(message, "✅ تم حفظ الرسالة اليومية بنجاح.")
+
 # 📤 نشر الرسالة الساعة 11 مساءً
 def post_scheduled_message():
     text = load_message()
@@ -335,26 +379,24 @@ def post_scheduled_message():
         bot.send_message(ADMIN_ID,"لا يوجد ما يتم نشرة .")
         return
     channels = load_channels()
-    posted = {}
     for chat_id in channels:
         try:
-            msg = bot.send_message(chat_id, text,reply_markup=get_fixed_button())
-            posted[str(chat_id)] = msg.message_id
+            msg = bot.send_message(chat_id, text, reply_markup=get_fixed_button())
+            save_posted(chat_id, msg.message_id)
         except Exception as e:
-            bot.send_message(ADMIN_ID,f"❌ خطأ في النشر إلى {chat_id}: {e}")
-    save_posted(posted)
-    bot.send_message(ADMIN_ID,"✅ تم النشر الساعة 11 مساءً.")
+            bot.send_message(ADMIN_ID,f"⚠️ خطأ في {chat_id}: {e}")
+    bot.send_message(ADMIN_ID,"✅ تم النشر.")
 
 # 🗑️ حذف الرسائل الساعة 6 صباحًا
 def delete_scheduled_messages():
     posted = load_posted()
-    for chat_id, msg_id in posted.items():
+    for chat_id, msg_id in posted:
         try:
-            bot.delete_message(int(chat_id), msg_id)
+            bot.delete_message(chat_id, msg_id)
         except Exception as e:
-            bot.send_message(ADMIN_ID, f"❌ خطأ في الحذف من {chat_id}: {e}")
-    save_posted({})
-    bot.send_message(ADMIN_ID,"🗑️ تم الحذف الساعة 6 صباحًا.")
+            bot.send_message(ADMIN_ID, f"⚠️ خطأ عند الحذف من {chat_id}: {e}")
+    clear_posted()
+    bot.send_message(ADMIN_ID,"🗑️ تم الحذف.")
 
 # ⏱️ جدولة المهام
 scheduler = BackgroundScheduler(timezone="Asia/Aden")
@@ -374,22 +416,16 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# استدعِ الدالة قبل تشغيل البوت
-keep_alive()
 
-scheduler.start()
-
-# 🚀 بدء البوت
-print("🤖 البوت يعمل الآن...")
-while True:
-    try:
-        bot.polling(none_stop=True, timeout=60)
-    except Exception as e:
-        print(f"❌ خطأ: {e}")
-        print("🔄 إعادة المحاولة بعد 30 ثانية...")
-        time.sleep(30)
-
-
-
-
-
+# 🚀 تشغيل
+if __name__ == "__main__":
+    init_db()
+    keep_alive()
+    scheduler.start()
+    print("🤖 البوت يعمل الآن...")
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=60)
+        except Exception as e:
+            print(f"❌ خطأ: {e}")
+            time.sleep(30)
