@@ -4,6 +4,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import time
 import json
+import psycopg2
 import os
 from flask import Flask
 from threading import Thread
@@ -429,3 +430,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
