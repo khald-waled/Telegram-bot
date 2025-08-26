@@ -262,52 +262,6 @@ def handle_message(message):
         bot.send_message(chat_id, f"❌ لا يمكنك استخدام البوت حتى تشترك في القناة {REQUIRED_CHANNEL}")
         return
 
-    # حالة إضافة قناة
-    if user_state == 'adding_channel':
-        try:
-            chat = bot.get_chat(message.text)
-            chat_id = chat.id
-            # تحقق أن البوت مشرف
-            member = bot.get_chat_member(chat_id, bot.get_me().id)
-            if member.status not in ['administrator', 'creator']:
-                bot.reply_to(message, "❌ يجب أن يكون البوت مشرفًا في القناة.")
-                return     
-
-            channels = load_channels()
-            if chat_id not in channels:
-                channels.append(chat_id)
-                save_channels(channels)
-                bot.reply_to(message, f"✅ تم إضافة القناة: {chat.title or chat_id}")
-                bot.send_message(ADMIN_ID, f"📢 تمت إضافة قناة جديدة: {chat.title or chat_id}")
-            else:
-                bot.reply_to(message, "⚠️ القناة موجودة بالفعل.")
-        except Exception as e:
-            bot.reply_to(message, "❌ فشل في إضافة القناة:\nتأكد ان الصيغة  تكون @yourChannel")
-            user_states.pop(message.from_user.id, None)
-        return
-
-    # حالة حذف قناة
-    elif user_state == 'deleting_channel':
-        try:
-            chat = bot.get_chat(message.text)
-            target_id = chat.id
-        except:
-            try:
-                target_id = int(message.text)
-            except:
-                bot.reply_to(message, "❌ صيغة غير صحيحة. أرسل رابط القناة مثل: @yourChanel أو رقمها.")
-                return
-
-        channels = load_channels()
-        if target_id in channels:
-            channels.remove(target_id)
-            save_channels(channels)
-            bot.reply_to(message, f"🗑️ تم حذف القناة: {target_id}")
-        else:
-            bot.reply_to(message, "⚠️ هذه القناة غير مسجلة.")
-        user_states.pop(user_id, None)
-        return
-
     # أي رسالة أخرى من المستخدم
     bot.reply_to(
         message,
@@ -391,5 +345,6 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
