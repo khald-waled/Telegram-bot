@@ -273,14 +273,42 @@ def handle_message(message):
     bot.send_message(ADMIN_ID, f"{user_id}")
     return
 
-# 🛰️ تسجيل أي قناة أُضيف إليها البوت
+# 🛰️ تسجيل أي قناة أُضيف إليها البوت فقط لو كان أدمن
 @bot.channel_post_handler(func=lambda m: True)
 def register_channel(message):
-    channels = load_channels()
-    if message.chat.id not in channels:
-        channels.append(message.chat.id)
-        save_channel(message.chat.id)
-        bot.send_message(ADMIN_ID,f"✅ تم تسجيل القناة: {message.chat.title}")
+    chat = message.chat
+
+    try:
+        # التحقق من صلاحيات البوت في القناة
+        member = bot.get_chat_member(chat.id, bot.get_me().id)
+
+        if member.status in ["administrator", "creator"]:
+            channels = load_channels()
+            # ✅ البوت أدمن → نحفظ القناة
+            if chat.id not in channels:
+                save_channel(chat.id)
+                bot.send_message(ADMIN_ID, f"✅ تم تسجيل القناة: {chat.title}\n🆔 {chat.id}")
+        else:
+            # ❌ البوت مش أدمن → لا نسجل ونرسل تحذير
+            invite_link = None
+            if chat.username:
+                invite_link = f"https://t.me/{chat.username}"
+            else:
+                try:
+                    invite_link = bot.create_chat_invite_link(chat.id).invite_link
+                except:
+                    invite_link = "🔒 لا يمكن جلب الرابط (قناة خاصة أو صلاحيات ناقصة)"
+
+            bot.send_message(
+                ADMIN_ID,
+                f"⚠️ القناة لم تُسجَّل لأن البوت ليس مشرفًا:\n\n"
+                f"📛 الاسم: {chat.title}\n"
+                f"🆔 ID: {chat.id}\n"
+                f"🔗 الرابط: {invite_link}"
+            )
+
+    except Exception as e:
+        bot.send_message(ADMIN_ID, f"❌ خطأ أثناء التحقق من قناة: {chat.title}\n{e}")
 
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
 def handle_admin_message(message):
@@ -345,6 +373,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
