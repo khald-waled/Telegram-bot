@@ -8,6 +8,7 @@ import psycopg2
 import os
 from flask import Flask
 from threading import Thread
+import time
 
 # 🛡️ معرفك الشخصي (لتقييد التحكم بك فقط)
 ADMIN_ID = int(os.getenv('ADMIN_ID'))  # 🔁 استبدله بـ Telegram ID 
@@ -273,24 +274,36 @@ def handle_message(message):
     bot.send_message(ADMIN_ID, f"{user_id}")
     return
 
+def safe_get_chat_member(chat_id, user_id, retries=3):
+    for i in range(retries):
+        try:
+            return bot.get_chat_member(chat_id, user_id)
+        except Exception as e:
+            if i < retries - 1:
+                time.sleep(2)  # انتظر ثانيتين ثم حاول مجددًا
+            else:
+                raise e
+
 # 🛰️ تسجيل أي قناة أُضيف إليها البوت فقط لو كان أدمن
 @bot.channel_post_handler(func=lambda m: True)
 def register_channel(message):
     chat = message.chat
 
     try:
-        # التحقق من صلاحيات البوت في القناة
-        member = bot.get_chat_member(chat.id, bot.get_me().id)
+        # التحقق من صلاحيات البوت في القناة (مع إعادة المحاولة)
+        try:
+            member = safe_get_chat_member(chat.id, bot.get_me().id)
+        except Exception as e:
+            bot.send_message(ADMIN_ID, f"❌ لم أستطع التحقق من القناة {chat.title}\n🔎 السبب: {e}")
+            return
 
         if member.status in ["administrator", "creator"]:
             channels = load_channels()
-            # ✅ البوت أدمن → نحفظ القناة
             if chat.id not in channels:
                 save_channel(chat.id)
                 bot.send_message(ADMIN_ID, f"✅ تم تسجيل القناة: {chat.title}\n🆔 {chat.id}")
         else:
-            # ❌ البوت مش أدمن → لا نسجل ونرسل تحذير
-            invite_link = None
+            # ❌ البوت مش أدمن
             if chat.username:
                 invite_link = f"https://t.me/{chat.username}"
             else:
@@ -373,6 +386,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
