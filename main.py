@@ -42,9 +42,17 @@ def init_db():
         msg_id BIGINT
     );
     """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS buttons (
+        id SERIAL PRIMARY KEY,
+        text TEXT,
+        url TEXT
+    );
+    """)
     conn.commit()
     cur.close()
     conn.close()
+
 
 def check_subscription(user_id):
     try:
@@ -125,6 +133,42 @@ def clear_posted():
     cur.close()
     conn.close()
 
+def save_button(text, url):
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO buttons (text, url) VALUES (%s, %s)", (text, url))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def load_buttons():
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT text, url FROM buttons")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return rows
+
+def clear_buttons():
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM buttons")
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_dynamic_buttons():
+    buttons = load_buttons()
+    if buttons:  # إذا فيه أزرار مضافة
+        markup = types.InlineKeyboardMarkup()
+        for text, url in buttons:
+            markup.add(types.InlineKeyboardButton(text, url=url))
+        return markup
+    else:  # إذا ما فيه أزرار مضافة → استخدم الزر الثابت
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("📡 قنوات جهادية", url="https://t.me/addlist/5gK4-CGwMuVhZGFk"))
+        return markup
 # زر للقنوات
 def get_fixed_button():
     markup = types.InlineKeyboardMarkup()
@@ -310,6 +354,43 @@ def manual_remove(message):
         return
     delete_scheduled_messages()
 
+@bot.message_handler(commands=['addbutton'])
+def add_button(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        # صيغة: /addbutton نص الزر - الرابط
+        parts = message.text.split("-", 1)
+        if len(parts) < 2:
+            bot.reply_to(message, "⚠️ استخدم الأمر هكذا:\n`/addbutton نص الزر - الرابط`", parse_mode="Markdown")
+            return
+        text = parts[0].replace("/addbutton", "").strip()
+        url = parts[1].strip()
+        save_button(text, url)
+        bot.reply_to(message, f"✅ تمت إضافة زر: [{text}]({url})", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ خطأ: {e}")
+
+@bot.message_handler(commands=['showbuttons'])
+def show_buttons(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    buttons = load_buttons()
+    if not buttons:
+        bot.reply_to(message, "🚫 لا توجد أزرار حالياً.")
+        return
+    result = "📋 الأزرار الحالية:\n\n"
+    for i, (text, url) in enumerate(buttons, start=1):
+        result += f"{i}. [{text}]({url})\n"
+    bot.send_message(message.chat.id, result, parse_mode="Markdown")
+
+@bot.message_handler(commands=['clearbuttons'])
+def clear_all_buttons(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    clear_buttons()
+    bot.reply_to(message, "🗑️ تم مسح كل الأزرار.")
+
 # ✅ إذا رد الأدمن على رسالة تحتوي على رقم ID، يتم إرسال الرد للمستخدم
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID and message.reply_to_message)
 def reply_to_user(message):
@@ -413,7 +494,7 @@ def post_scheduled_message():
     channels = load_channels()
     for chat_id in channels:
         try:
-            msg = bot.send_message(chat_id, text, reply_markup=get_fixed_button())
+            msg = bot.send_message(chat_id, text, reply_markup=get_dynamic_buttons())
             save_posted(chat_id, msg.message_id)
         except Exception as e:
             bot.send_message(ADMIN_ID,f"⚠️ خطأ في {chat_id}: {e}")
@@ -461,6 +542,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
