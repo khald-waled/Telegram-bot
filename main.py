@@ -176,28 +176,87 @@ def show_channels(message):
             title = chat.title or "بدون اسم"
             username = chat.username
             if username:
-                result += f"🔹 [{title}](https://t.me/{username})\n"
+                result += f"🔹 [{title}](https://t.me/{username})\n[{chat_id}]\n"
             else:
                 result += f"🔹 {title} (لا يوجد معرف)\n"
         except Exception as e:
             result += f"⚠️ لا يمكن جلب بيانات القناة: {chat_id}\n"
     bot.send_message(message.chat.id, result)
 
-# ➕ إدخال قناة
+def normalize_chat_id(text):
+    try:
+        if text.startswith("http"):
+            # لو رابط
+            username = text.split("t.me/")[-1].replace("/", "").strip()
+            chat = bot.get_chat(username)
+            return chat.id
+        elif text.startswith("@"):
+            # لو يوزر
+            chat = bot.get_chat(text)
+            return chat.id
+        else:
+            # لو آيدي مباشر
+            return int(text)
+    except Exception as e:
+        return None
+
+# ➕ إضافة قناة
 @bot.message_handler(commands=['addchannel'])
-def request_channel_add(message):
+def add_channel(message):
     if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "❌ غير مسموح.")
         return
-    user_states[message.from_user.id] = 'adding_channel'
-    bot.reply_to(message, "🔗 أرسل الآن رابط القناة لإضافتها.")
+    
+    try:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            bot.reply_to(message, "⚠️ استخدم الأمر هكذا:\n`/addchannel @username` أو بالرابط أو الآيدي", parse_mode="Markdown")
+            return
+        
+        chat_id = normalize_chat_id(parts[1].strip())
+        if not chat_id:
+            bot.reply_to(message, "❌ لم أستطع التعرف على القناة.")
+            return
+        
+        channels = load_channels()
+        if chat_id in channels:
+            bot.reply_to(message, "ℹ️ القناة مسجلة بالفعل.")
+        else:
+            save_channel(chat_id)
+            chat = bot.get_chat(chat_id)
+            bot.reply_to(message, f"✅ تمت إضافة القناة:\n📛 {chat.title}\n🆔 `{chat_id}`", parse_mode="Markdown")
+    
+    except Exception as e:
+        bot.reply_to(message, f"❌ خطأ: {e}")
 
 # ➖ حذف قناة
 @bot.message_handler(commands=['removechannel'])
-def request_channel_delete(message):
+def remove_channel(message):
     if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "❌ غير مسموح.")
         return
-    user_states[message.from_user.id] = 'deleting_channel'
-    bot.reply_to(message, "🗑️ أرسل الآن رابط القناة أو رقمها لحذفها.")
+    
+    try:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            bot.reply_to(message, "⚠️ استخدم الأمر هكذا:\n`/removechannel @username` أو بالرابط أو الآيدي", parse_mode="Markdown")
+            return
+        
+        chat_id = normalize_chat_id(parts[1].strip())
+        if not chat_id:
+            bot.reply_to(message, "❌ لم أستطع التعرف على القناة.")
+            return
+        
+        channels = load_channels()
+        if chat_id not in channels:
+            bot.reply_to(message, "⚠️ القناة غير موجودة في القائمة.")
+        else:
+            delete_channel(chat_id)
+            chat = bot.get_chat(chat_id)
+            bot.reply_to(message, f"🗑️ تم حذف القناة:\n📛 {chat.title}\n🆔 `{chat_id}`", parse_mode="Markdown")
+    
+    except Exception as e:
+        bot.reply_to(message, f"❌ خطأ: {e}")
 
 @bot.message_handler(commands=['show_message'])
 def show_scheduled_message(message):
@@ -234,6 +293,22 @@ def send_welcome(message):
             "⏰ سيتم نشر الرسالة الساعة 11 مساءً وحذفها الساعة 6 صباحًا تلقائيًا.\n"
             "⚠️ لا تقم بحذف الرسالة بنفسك."
                     )
+
+# 📤 نشر يدوي عبر أمر
+@bot.message_handler(commands=['sendpost'])
+def manual_post(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "❌ غير مسموح لك.")
+        return
+    post_scheduled_message()
+
+# 🗑️ حذف يدوي عبر أمر
+@bot.message_handler(commands=['removeposts'])
+def manual_remove(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "❌ غير مسموح لك.")
+        return
+    delete_scheduled_messages()
 
 # ✅ إذا رد الأدمن على رسالة تحتوي على رقم ID، يتم إرسال الرد للمستخدم
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID and message.reply_to_message)
@@ -386,6 +461,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
