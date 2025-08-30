@@ -308,7 +308,7 @@ def show_scheduled_message(message):
         return
     msg = load_message()
     if msg:
-        bot.reply_to(message, f"📨 الرسالة الحالية:\n\n{msg}",reply_markup=get_fixed_button())
+        bot.reply_to(message, f"📨 الرسالة الحالية:\n\n{msg}",reply_markup=get_dynamic_buttons())
     else:
         bot.reply_to(message, "📭 لا توجد رسالة محفوظة حالياً.")
 
@@ -542,6 +542,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
