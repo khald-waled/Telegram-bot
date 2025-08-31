@@ -391,6 +391,61 @@ def clear_all_buttons(message):
     clear_buttons()
     bot.reply_to(message, "🗑️ تم مسح كل الأزرار.")
 
+
+# 🛰️ تسجيل أي قناة أُضيف إليها البوت فقط لو كان مشرف
+@bot.my_chat_member_handler()
+def register_channel(update):
+    chat = update.chat
+    new_member = update.new_chat_member
+    new_status = new_member.status
+
+    try:
+        if new_status in ["administrator", "creator"]:
+            channels = load_channels()
+            if chat.id not in channels:
+                save_channel(chat.id)
+
+                # 🔗 الرابط
+                if chat.username:
+                    invite_link = f"https://t.me/{chat.username}"
+                else:
+                    try:
+                        invite_link = bot.create_chat_invite_link(chat.id).invite_link
+                    except:
+                        invite_link = "🔒 لا يمكن جلب الرابط (قناة خاصة أو صلاحيات ناقصة)"
+
+                # ✅ / ❌ تنسيق
+                def fmt(val): return "✅" if val else "❌"
+
+                rights_text = f"""
+✅ تم تسجيل القناة:
+📛 الاسم: {chat.title}
+🆔 ID: {chat.id}
+🔗 الرابط: {invite_link}
+
+🔹 الصلاحيات:
+- نشر الرسائل: {fmt(getattr(new_member, 'can_post_messages', False))}
+- تعديل الرسائل: {fmt(getattr(new_member, 'can_edit_messages', False))}
+- حذف الرسائل: {fmt(getattr(new_member, 'can_delete_messages', False))}
+- تثبيت الرسائل: {fmt(getattr(new_member, 'can_pin_messages', False))}
+- تغيير المعلومات: {fmt(getattr(new_member, 'can_change_info', False))}
+- إدارة القناة: {fmt(getattr(new_member, 'can_manage_chat', False))}
+- إنشاء روابط دعوة: {fmt(getattr(new_member, 'can_invite_users', False))}
+- إدارة البث المباشر: {fmt(getattr(new_member, 'can_manage_video_chats', False))}
+"""
+
+                bot.send_message(ADMIN_ID, rights_text)
+
+        else:
+            # لو تم تنزيل البوت من مشرف لعضو
+            bot.send_message(
+                ADMIN_ID,
+                f"⚠️ البوت لم يعد مشرف في القناة:\n📛 {chat.title}\n🆔 {chat.id}"
+            )
+
+    except Exception as e:
+        bot.send_message(ADMIN_ID, f"❌ خطأ أثناء تسجيل القناة: {chat.title}\n{e}")
+
 # ✅ إذا رد الأدمن على رسالة تحتوي على رقم ID، يتم إرسال الرد للمستخدم
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID and message.reply_to_message)
 def reply_to_user(message):
@@ -439,45 +494,6 @@ def safe_get_chat_member(chat_id, user_id, retries=3):
                 time.sleep(2)  # انتظر ثانيتين ثم حاول مجددًا
             else:
                 raise e
-
-# 🛰️ تسجيل أي قناة أُضيف إليها البوت فقط لو كان أدمن
-@bot.channel_post_handler(func=lambda m: True)
-def register_channel(message):
-    chat = message.chat
-
-    try:
-        # التحقق من صلاحيات البوت في القناة (مع إعادة المحاولة)
-        try:
-            member = safe_get_chat_member(chat.id, bot.get_me().id)
-        except Exception as e:
-            bot.send_message(ADMIN_ID, f"❌ لم أستطع التحقق من القناة {chat.title}\n🔎 السبب: {e}")
-            return
-
-        if member.status in ["administrator", "creator"]:
-            channels = load_channels()
-            if chat.id not in channels:
-                save_channel(chat.id)
-                bot.send_message(ADMIN_ID, f"✅ تم تسجيل القناة: {chat.title}\n🆔 {chat.id}")
-        else:
-            # ❌ البوت مش أدمن
-            if chat.username:
-                invite_link = f"https://t.me/{chat.username}"
-            else:
-                try:
-                    invite_link = bot.create_chat_invite_link(chat.id).invite_link
-                except:
-                    invite_link = "🔒 لا يمكن جلب الرابط (قناة خاصة أو صلاحيات ناقصة)"
-
-            bot.send_message(
-                ADMIN_ID,
-                f"⚠️ القناة لم تُسجَّل لأن البوت ليس مشرفًا:\n\n"
-                f"📛 الاسم: {chat.title}\n"
-                f"🆔 ID: {chat.id}\n"
-                f"🔗 الرابط: {invite_link}"
-            )
-
-    except Exception as e:
-        bot.send_message(ADMIN_ID, f"❌ خطأ أثناء التحقق من قناة: {chat.title}\n{e}")
 
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID)
 def handle_admin_message(message):
@@ -542,6 +558,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
