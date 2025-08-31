@@ -204,28 +204,57 @@ This bot helps support jihad-focused channels by posting a unified daily message
 """
     bot.reply_to(message, help_m)
 
-# 🔍 عرض القنوات
+# 🔍 عرض القنوات مع الصلاحيات
 @bot.message_handler(commands=['show_channels'])
 def show_channels(message):
     if message.from_user.id != ADMIN_ID:
         return
+
     channels = load_channels()
     if not channels:
         bot.reply_to(message, "🚫 لا توجد قنوات مسجلة.")
         return
+
     result = "📋 القنوات المسجلة:\n\n"
+    me = bot.get_me()
+
     for chat_id in channels:
         try:
             chat = bot.get_chat(chat_id)
             title = chat.title or "بدون اسم"
             username = chat.username
+
+            # محاولة جلب صلاحيات البوت في القناة
+            try:
+                member = bot.get_chat_member(chat.id, me.id)
+            except:
+                member = None
+
             if username:
-                result += f"🔹 [{title}](https://t.me/{username})\n[{chat_id}]\n"
+                result += f"🔹 [{title}](https://t.me/{username})\n🆔 {chat.id}\n"
             else:
-                result += f"🔹 {title} (لا يوجد معرف)\n"
+                result += f"🔹 {title}\n🆔 {chat.id}\n"
+
+            if member and member.status in ["administrator", "creator"]:
+                def fmt(val): return "✅" if val else "❌"
+                result += (
+                    "   ── الصلاحيات ──\n"
+                    f"   • نشر الرسائل: {fmt(getattr(member, 'can_post_messages', False))}\n"
+                    f"   • تعديل الرسائل: {fmt(getattr(member, 'can_edit_messages', False))}\n"
+                    f"   • حذف الرسائل: {fmt(getattr(member, 'can_delete_messages', False))}\n"
+                    f"   • تثبيت الرسائل: {fmt(getattr(member, 'can_pin_messages', False))}\n"
+                    f"   • تغيير المعلومات: {fmt(getattr(member, 'can_change_info', False))}\n"
+                    f"   • إدارة القناة: {fmt(getattr(member, 'can_manage_chat', False))}\n"
+                    f"   • إنشاء روابط دعوة: {fmt(getattr(member, 'can_invite_users', False))}\n"
+                    f"   • إدارة البث المباشر: {fmt(getattr(member, 'can_manage_video_chats', False))}\n\n"
+                )
+            else:
+                result += "   ⚠️ البوت ليس مشرفًا في هذه القناة\n\n"
+
         except Exception as e:
-            result += f"⚠️ لا يمكن جلب بيانات القناة: {chat_id}\n"
-    bot.send_message(message.chat.id, result)
+            result += f"⚠️ لا يمكن جلب بيانات القناة: {chat_id}\n\n"
+
+    bot.send_message(message.chat.id, result, parse_mode="Markdown")
 
 def normalize_chat_id(text):
     try:
@@ -558,6 +587,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
