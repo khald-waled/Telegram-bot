@@ -254,8 +254,10 @@ def show_channels(message):
         except Exception as e:
             result += f"⚠️ لا يمكن جلب بيانات القناة: {chat_id}\n\n"
 
-    bot.send_message(message.chat.id, result, parse_mode="Markdown")
-
+    # تقسيم الرسالة الطويلة وإرسالها
+    MAX_LEN = 4000
+    for i in range(0, len(result), MAX_LEN):
+        bot.send_message(message.chat.id, result[i:i+MAX_LEN], parse_mode="Markdown")
 def normalize_chat_id(text):
     try:
         if text.startswith("http"):
@@ -333,8 +335,6 @@ def remove_channel(message):
 
 @bot.message_handler(commands=['show_message'])
 def show_scheduled_message(message):
-    if message.from_user.id != ADMIN_ID:
-        return
     msg = load_message()
     if msg:
         bot.reply_to(message, f"📨 الرسالة الحالية:\n\n{msg}",reply_markup=get_dynamic_buttons())
@@ -586,6 +586,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
