@@ -505,9 +505,8 @@ def handle_message(message):
     # أي رسالة أخرى من المستخدم
     bot.reply_to(
         message,
-        "📡 أرسل رابط قناتك وتأكد من جعل البوت مشرفًا فيها.\n"
-        "✳️ سيتم إضافتها إلى قائمة الدعم.\n"
-        "راسل المسؤول: @RohThoryaBot"
+        "📡  تم الارسال الى المسؤل على القائمة\n"
+        "إذا تأخر الرد راسل المسؤل : @RohThoryaBot"
     )
     bot.forward_message(ADMIN_ID, chat_id, message.message_id)
     bot.send_message(ADMIN_ID, f"{user_id}")
@@ -586,6 +585,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
