@@ -367,6 +367,75 @@ def send_welcome(message):
             "⚠️ لا تقم بحذف الرسالة بنفسك."
                     )
 
+# 🛰️ إرسال لآيديات أو معرفات متعددة
+@bot.message_handler(commands=['sendto'])
+def sendto(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        # إزالة الأمر نفسه "/sendto "
+        text = message.text[len("/sendto "):].strip()
+
+        if not text:
+            bot.reply_to(message, "⚠️ استخدم الصيغة:\n/sendto 1111,2222 @user1 3333\nالرسالة هنا")
+            return
+
+        # فصل بين المعرفات (أول سطر أو أول كلمة حتى السطر الجديد)
+        if "\n" in text:
+            ids_part, msg_part = text.split("\n", 1)
+        else:
+            bot.reply_to(message, "⚠️ ضع الآيديات أولاً ثم انتقل سطر جديد للرسالة.")
+            return
+
+        # تجهيز قائمة المعرفات
+        raw_ids = ids_part.replace(",", " ").split()
+        targets = [x.strip() for x in raw_ids if x.strip()]
+
+        # تجهيز الرسالة
+        msg_text = msg_part.strip()
+        if not msg_text:
+            bot.reply_to(message, "⚠️ الرسالة فارغة.")
+            return
+
+        success = []
+        failed = []
+
+        for t in targets:
+            try:
+                # إذا كان يوزر (يبدأ بـ @) نستخدمه مباشرة
+                if t.startswith("@"):
+                    bot.send_message(t, msg_text, parse_mode="HTML")
+                else:
+                    chat_id = int(t)
+                    # تيليجرام أحيانًا يتطلب -100 للمجموعات والقنوات
+                    if not str(chat_id).startswith("-"):
+                        try:
+                            # نجرب مباشرة
+                            bot.send_message(chat_id, msg_text, parse_mode="HTML")
+                        except:
+                            # لو فشل نحاول مع -100
+                            bot.send_message(f"-{chat_id}", msg_text, parse_mode="HTML")
+                    else:
+                        bot.send_message(chat_id, msg_text, parse_mode="HTML")
+
+                success.append(t)
+
+            except Exception as e:
+                failed.append((t, str(e)[:80]))  # نأخذ 80 حرف فقط من الخطأ
+
+        # 🔔 تقرير الإرسال
+        report = f"📤 تقرير الإرسال:\n\n✅ نجح الإرسال لـ {len(success)}\n❌ فشل الإرسال لـ {len(failed)}\n\n"
+        if success:
+            report += "✔️ الناجح:\n" + ", ".join(success) + "\n\n"
+        if failed:
+            report += "⚠️ الفاشل:\n" + "\n".join([f"{t} → {reason}" for t, reason in failed])
+
+        bot.send_message(message.chat.id, report)
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ خطأ أثناء التنفيذ:\n{e}")
+
 # 📤 نشر يدوي عبر أمر
 @bot.message_handler(commands=['sendpost'])
 def manual_post(message):
@@ -585,6 +654,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
