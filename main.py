@@ -275,7 +275,8 @@ def normalize_chat_id(text):
     except Exception as e:
         return None
 
-# ➕ إضافة قناة
+
+# ➕ إضافة قنوات (يدعم id أو @username أو رابط)
 @bot.message_handler(commands=['addchannel'])
 def add_channel(message):
     if message.from_user.id != ADMIN_ID:
@@ -285,21 +286,43 @@ def add_channel(message):
     try:
         parts = message.text.split(maxsplit=1)
         if len(parts) < 2:
-            bot.reply_to(message, "⚠️ استخدم الأمر هكذا:\n`/addchannel @username` أو بالرابط أو الآيدي", parse_mode="Markdown")
+            bot.reply_to(
+                message,
+                "⚠️ استخدم الأمر هكذا:\n"
+                "`/addchannel 123456 -1001234567 @username https://t.me/username ...`",
+                parse_mode="Markdown"
+            )
             return
         
-        chat_id = normalize_chat_id(parts[1].strip())
-        if not chat_id:
-            bot.reply_to(message, "❌ لم أستطع التعرف على القناة.")
-            return
-        
+        raw_inputs = parts[1].split()
+        added, already, failed = [], [], []
         channels = load_channels()
-        if chat_id in channels:
-            bot.reply_to(message, "ℹ️ القناة مسجلة بالفعل.")
-        else:
-            save_channel(chat_id)
-            chat = bot.get_chat(chat_id)
-            bot.reply_to(message, f"✅ تمت إضافة القناة:\n📛 {chat.title}\n🆔 `{chat_id}`", parse_mode="Markdown")
+        
+        for raw in raw_inputs:
+            chat_id = normalize_chat_id(raw.strip())
+            if not chat_id:
+                failed.append(raw)
+                continue
+            
+            if chat_id in channels:
+                already.append(str(chat_id))
+            else:
+                try:
+                    save_channel(chat_id)
+                    chat = bot.get_chat(chat_id)
+                    added.append(f"{chat.title} (`{chat_id}`)")
+                except:
+                    failed.append(str(chat_id))
+        
+        response = "📋 نتيجة الإضافة:\n"
+        if added:
+            response += "\n✅ تمت إضافة:\n" + "\n".join(added)
+        if already:
+            response += "\nℹ️ موجودة مسبقًا:\n" + "\n".join(already)
+        if failed:
+            response += "\n❌ فشل في التعرف/الإضافة:\n" + "\n".join(failed)
+        
+        bot.reply_to(message, response, parse_mode="Markdown")
     
     except Exception as e:
         bot.reply_to(message, f"❌ خطأ: {e}")
@@ -654,6 +677,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
