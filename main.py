@@ -584,7 +584,7 @@ def reply_to_user(message):
         bot.reply_to(message, f"❌ حدث خطأ:\n{e}")
 
 # 📝 استقبال رسائل المستخدمين اليومية
-@bot.message_handler(func=lambda message: message.from_user.id != ADMIN_ID)
+@bot.message_handler(func=lambda message: message.from_user.id != ADMIN_ID and message.chat.type == "private")
 def handle_message(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
@@ -677,6 +677,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
