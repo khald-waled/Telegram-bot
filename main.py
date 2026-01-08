@@ -176,6 +176,22 @@ def get_fixed_button():
     markup.add(button)
     return markup
 
+def escape_markdown(text):
+    """
+    تهريب الرموز الخاصة في Markdown لبرقية
+    """
+    # قائمة الرموز الخاصة في Markdown لبرقية
+    special_chars = [
+        '_', '*', '[', ']', '(', ')', '~', '`',
+        '>', '#', '+', '-', '=', '|', '{', '}',
+        '.', '!'
+    ]
+    
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    
+    return text
+
 # 🔍 رسالة المساعدة
 @bot.message_handler(commands=['help'])
 def help_message(message):
@@ -205,7 +221,7 @@ This bot helps support jihad-focused channels by posting a unified daily message
     bot.reply_to(message, help_m)
 
 # 🔍 عرض القنوات مع الصلاحيات (قنوات فقط)
-@bot.message_handler(commands=['show_channels'])
+@bot.message_handler(commands=['show_channel'])
 def show_channels(message):
     # يعمل فقط في الخاص + للأدمن
     if message.chat.type != "private":
@@ -267,7 +283,7 @@ def show_channels(message):
         )
 
 # 🔍 عرض القنوات مع الصلاحيات
-@bot.message_handler(commands=['show_channel'])
+@bot.message_handler(commands=['show_channels'])
 def show_channel(message):
     if message.from_user.id != ADMIN_ID:
         return
@@ -306,7 +322,6 @@ def show_channel(message):
                     f"   • حذف الرسائل: {fmt(getattr(member, 'can_delete_messages', False))}\n"
                     f"   • تثبيت الرسائل: {fmt(getattr(member, 'can_pin_messages', False))}\n"
                     f"   • تغيير المعلومات: {fmt(getattr(member, 'can_change_info', False))}\n"
-                    f"   • إدارة القناة: {fmt(getattr(member, 'can_manage_chat', False))}\n"
                     f"   • إنشاء روابط دعوة: {fmt(getattr(member, 'can_invite_users', False))}\n"
                     f"   • إدارة البث المباشر: {fmt(getattr(member, 'can_manage_video_chats', False))}\n\n"
                 )
@@ -319,7 +334,9 @@ def show_channel(message):
     # تقسيم الرسالة الطويلة وإرسالها
     MAX_LEN = 4000
     for i in range(0, len(result), MAX_LEN):
-        bot.send_message(message.chat.id, result[i:i+MAX_LEN], parse_mode="Markdown")
+        bot.send_message(message.chat.id, escape_markdown(result[i:i+MAX_LEN]), parse_mode="Markdown")
+
+
 def normalize_chat_id(text):
     try:
         if text.startswith("http"):
@@ -739,6 +756,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
