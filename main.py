@@ -299,7 +299,7 @@ def show_channel(message):
     for chat_id in channels:
         try:
             chat = bot.get_chat(chat_id)
-            title = chat.title or "بدون اسم"
+            title = escape_markdown(chat.title or "بدون اسم")
             username = chat.username
 
             # محاولة جلب صلاحيات البوت في القناة
@@ -334,7 +334,7 @@ def show_channel(message):
     # تقسيم الرسالة الطويلة وإرسالها
     MAX_LEN = 4000
     for i in range(0, len(result), MAX_LEN):
-        bot.send_message(message.chat.id, escape_markdown(result[i:i+MAX_LEN]), parse_mode="Markdown")
+        bot.send_message(message.chat.id, result[i:i+MAX_LEN], parse_mode="Markdown")
 
 
 def normalize_chat_id(text):
@@ -756,6 +756,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
