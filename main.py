@@ -82,6 +82,61 @@ def get_all_users():
     conn.close()
     return [r[0] for r in rows]
 
+def save_users_bulk(user_ids):
+    """حفظ عدة مستخدمين دفعة واحدة (أكثر كفاءة)"""
+    if not user_ids:
+        return 0
+    
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    
+    # تحضير البيانات للINSERT
+    data = [(user_id,) for user_id in user_ids]
+    
+    # إدراج متعدد مع تجاهل التكرار
+    execute_values(
+        cur,
+        "INSERT INTO bot_users (user_id) VALUES %s ON CONFLICT DO NOTHING",
+        data
+    )
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return len(user_ids)
+
+def user_exists(user_id):
+    """التحقق من وجود مستخدم"""
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT EXISTS(SELECT 1 FROM bot_users WHERE user_id = %s)", (user_id,))
+    exists = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return exists
+
+def get_users_count():
+    """الحصول على عدد المستخدمين"""
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM bot_users")
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return count
+
+def remove_user(user_id):
+    """حذف مستخدم"""
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM bot_users WHERE user_id = %s", (user_id,))
+    deleted = cur.rowcount > 0
+    conn.commit()
+    cur.close()
+    conn.close()
+    return deleted
+
 
 def check_subscription(user_id):
     try:
@@ -580,6 +635,44 @@ def sendto(message):
     except Exception as e:
         bot.reply_to(message, f"❌ خطأ أثناء التنفيذ:\n{e}")
 
+@bot.message_handler(commands=['add_user'])
+def broadcast_to_users(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    # استخراج النص بعد الأمر /broadcast
+    msg_text = message.text.replace("/add_user", "").strip()
+    save_user(message.from_user.id)
+    bot.send_message()
+
+@bot.message_handler(commands=['broadcast'])
+def broadcast_to_users(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    # استخراج النص بعد الأمر /broadcast
+    msg_text = message.text.replace("/broadcast", "").strip()
+    
+    if not msg_text:
+        bot.reply_to(message, "⚠️ يرجى كتابة الرسالة بعد الأمر. مثال:\n`/broadcast السلام عليكم`", parse_mode="Markdown")
+        return
+
+    users = get_all_users()
+    count = 0
+    send_message = bot.send_message(ADMIN_ID, f"🔄 جاري إرسال الرسالة إلى {len(users)} مستخدم...")
+
+    for user_id in users:
+        try:
+            bot.send_message(user_id, msg_text)
+            count += 1
+            time.sleep(0.1)  # لتجنب حظر التليجرام (Flood)
+        except Exception:
+            pass # ربما قام المستخدم بحظر البوت
+
+    bot.send_message(ADMIN_ID, f"✅ تمت الإذاعة بنجاح لـ {count} مستخدم.")
+    bot.delete_message(ADMIN_ID, send_message.message_id)
+
+
 # 📤 نشر يدوي عبر أمر
 @bot.message_handler(commands=['sendpost'])
 def manual_post(message):
@@ -842,6 +935,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
