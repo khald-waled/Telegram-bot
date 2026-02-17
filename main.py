@@ -752,6 +752,7 @@ def show_my_channels(message):
 def handle_message(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
+    save_user(user_id)
 
     # التحقق من الاشتراك الإجباري
     if not check_subscription(user_id):
@@ -841,6 +842,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
