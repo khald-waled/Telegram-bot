@@ -30,6 +30,14 @@ def init_db():
         id BIGINT PRIMARY KEY
     );
     """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS bot_users (
+        user_id BIGINT PRIMARY KEY
+    );
+    """)
+    
+
     try:
         cur.execute("ALTER TABLE IF EXISTS channels ADD COLUMN IF NOT EXISTS owner_id BIGINT;")
     except:
@@ -58,6 +66,22 @@ def init_db():
     cur.close()
     conn.close()
 
+def save_user(user_id):
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO bot_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_all_users():
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM bot_users")
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
 
 def check_subscription(user_id):
     try:
@@ -79,10 +103,23 @@ def load_channels():
     conn.close()
     return [r[0] for r in rows]
 
-def save_channel(chat_id):
+def save_channel_old(chat_id):
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
     cur.execute("INSERT INTO channels (id) VALUES (%s) ON CONFLICT DO NOTHING", (chat_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def save_channel(chat_id, owner_id=None):
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    # حفظ القناة مع معرف المالك
+    cur.execute("""
+    INSERT INTO channels (id, owner_id) 
+    VALUES (%s, %s) 
+    ON CONFLICT (id) DO UPDATE SET owner_id = EXCLUDED.owner_id
+    """, (chat_id, owner_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -596,6 +633,24 @@ def clear_all_buttons(message):
     clear_buttons()
     bot.reply_to(message, "🗑️ تم مسح كل الأزرار.")
 
+def register_channel_with_owner(update):
+    chat = update.chat
+    new_member = update.new_chat_member
+    
+    # معرف الشخص الذي قام بإضافة البوت أو ترقيته
+    from_user_id = update.from_user.id 
+
+    try:
+        if new_member.status in ["administrator", "creator"]:
+            # حفظ القناة وربطها بالمستخدم الذي قام بالترقية
+            save_channel(chat.id, from_user_id)
+
+            # تنسيق رسالة للأدمن لإبلاغه من صاحب القناة
+            bot.send_message(ADMIN_ID, f"✅ قناة جديدة مسجلة:\n"
+                                       f"📛 الاسم: {chat.title}\n"
+                                       f"🆔 ID: {chat.id}\n"
+                                       f"👤 بواسطة: {update.from_user.first_name} ({from_user_id})")
+
 
 # 🛰️ تسجيل أي قناة أُضيف إليها البوت فقط لو كان مشرف
 @bot.my_chat_member_handler()
@@ -608,7 +663,7 @@ def register_channel(update):
         if new_status in ["administrator", "creator"]:
             channels = load_channels()
             if chat.id not in channels:
-                save_channel(chat.id)
+                register_channel_with_owner(chat.id)
 
                 # 🔗 الرابط
                 if chat.username:
@@ -666,6 +721,31 @@ def reply_to_user(message):
         bot.reply_to(message, "✅ تم إرسال الرد للمستخدم.")
     except Exception as e:
         bot.reply_to(message, f"❌ حدث خطأ:\n{e}")
+
+@bot.message_handler(commands=['my_channels'])
+def show_my_channels(message):
+    user_id = message.from_user.id
+    
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM channels WHERE owner_id = %s", (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+
+    if not rows:
+        bot.reply_to(message, "🚫 لم تقم بتسجيل أي قنوات باسمك بعد.")
+        return
+
+    res = "📋 قنواتك المسجلة في الدعم:\n\n"
+    for r in rows:
+        try:
+            chat = bot.get_chat(r[0])
+            res += f"🔹 {chat.title} (`{r[0]}`)\n"
+        except:
+            res += f"🔹 قناة غير معروفة (`{r[0]}`)\n"
+    
+    bot.reply_to(message, res, parse_mode="Markdown")
+
 
 # 📝 استقبال رسائل المستخدمين اليومية
 @bot.message_handler(func=lambda message: message.from_user.id != ADMIN_ID and message.chat.type == "private")
@@ -761,6 +841,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
