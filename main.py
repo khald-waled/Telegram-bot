@@ -30,6 +30,11 @@ def init_db():
         id BIGINT PRIMARY KEY
     );
     """)
+    try:
+        cur.execute("ALTER TABLE IF EXISTS channels ADD COLUMN IF NOT EXISTS owner_id BIGINT;")
+    except:
+        conn.rollback() # العمود موجود مسبقاً
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS message (
         id SERIAL PRIMARY KEY,
@@ -756,6 +761,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(30)
+
 
 
 
