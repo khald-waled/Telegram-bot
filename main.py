@@ -5,6 +5,7 @@ from datetime import datetime
 import time
 import json
 import psycopg2
+from psycopg2.extras import execute_values
 import os
 from flask import Flask
 from threading import Thread
