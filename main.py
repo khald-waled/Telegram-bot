@@ -137,6 +137,35 @@ def remove_user(user_id):
     conn.close()
     return deleted
 
+def get_detailed_stats():
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    
+    # 1. إجمالي عدد المستخدمين
+    cur.execute("SELECT COUNT(*) FROM bot_users")
+    total_users = cur.fetchone()[0]
+    
+    # 2. عدد المستخدمين الذين لديهم قناة واحدة على الأقل
+    # نستخدم DISTINCT للتأكد من عدم تكرار المستخدم إذا كان يملك أكثر من قناة
+    cur.execute("SELECT COUNT(DISTINCT owner_id) FROM channels")
+    users_with_channels = cur.fetchone()[0]
+    
+    # 3. إجمالي عدد القنوات المضافة في البوت
+    cur.execute("SELECT COUNT(*) FROM channels")
+    total_channels = cur.fetchone()[0]
+    
+    # 4. حساب المستخدمين الذين ليس لديهم قنوات
+    users_without_channels = total_users - users_with_channels
+    
+    cur.close()
+    conn.close()
+    
+    return {
+        "total_users": total_users,
+        "with_channels": users_with_channels,
+        "without_channels": users_without_channels,
+        "total_channels": total_channels
+    }
 
 def check_subscription(user_id):
     try:
@@ -681,6 +710,39 @@ def broadcast_to_users(message):
     bot.send_message(ADMIN_ID, f"✅ تمت الإذاعة بنجاح لـ {count} مستخدم.")
     bot.delete_message(ADMIN_ID, send_message.message_id)
 
+
+@bot.message_handler(commands=['stats', 'users'])
+def admin_dashboard(message):
+    # التأكد من أن المرسل هو الأدمن
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    stats = get_detailed_stats()
+    
+    # حساب النسب المئوية (لمسة إضافية مفيدة للمدير)
+    if stats['total_users'] > 0:
+        active_ratio = (stats['with_channels'] / stats['total_users']) * 100
+    else:
+        active_ratio = 0
+
+    response = (
+        "📊 **لوحة تحكم الإحصائيات الشاملة**\n"
+        "━━━━━━━━━━━━━━━\n\n"
+        f"👤 **المستخدمين:**\n"
+        f"├ الإجمالي: `{stats['total_users']}` مستخدم\n"
+        f"├ لديهم قنوات: `{stats['with_channels']}` ✅\n"
+        f"└ ليس لديهم قنوات: `{stats['without_channels']}` ❌\n\n"
+        
+        f"📢 **القنوات:**\n"
+        f"└ إجمالي القنوات المضافة: `{stats['total_channels']}` قناة\n\n"
+        
+        f"📈 **تحليل النشاط:**\n"
+        f"└ نسبة التفاعل: `{active_ratio:.1f}%` من المستخدمين أضافوا قنواتهم.\n"
+        "━━━━━━━━━━━━━━━\n"
+        "💡 *نصيحة: استخدم /broadcast لإرسال تنبيه للمستخدمين الذين لم يضيفوا قنواتهم بعد.*"
+    )
+
+    bot.reply_to(message, response, parse_mode="Markdown")
 
 # 📤 نشر يدوي عبر أمر
 @bot.message_handler(commands=['sendpost'])
