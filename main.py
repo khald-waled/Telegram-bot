@@ -934,7 +934,7 @@ def keep_alive():
     t.start()
 
 
-# 🚀 تشغيل
+# 🚀 تشغيل 
 if __name__ == "__main__":
     init_db()
     keep_alive()
