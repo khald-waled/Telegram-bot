@@ -148,6 +148,15 @@ def check_subscription(user_id):
         print(f"Error checking subscription: {e}")
         return False
 
+
+def load_owners():
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT owner_id FROM channels")
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
 # 📥 تحميل/حفظ القنوات
 # 📥 دوال للتعامل مع القنوات
 def load_channels():
@@ -743,6 +752,8 @@ def register_channel_with_owner(update):
                                        f"📛 الاسم: {chat.title}\n"
                                        f"🆔 ID: {chat.id}\n"
                                        f"👤 بواسطة: {update.from_user.first_name} ({from_user_id})")
+    except Exception as e:
+        print(f"Error in register_channel: {e}")
 
 
 # 🛰️ تسجيل أي قناة أُضيف إليها البوت فقط لو كان مشرف
