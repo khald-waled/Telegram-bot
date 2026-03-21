@@ -830,7 +830,7 @@ def register_channel(update):
         if new_status in ["administrator", "creator"]:
             channels = load_channels()
             if chat.id not in channels:
-                register_channel_with_owner(chat.id)
+                register_channel_with_owner(update)
 
                 # 🔗 الرابط
                 if chat.username:
